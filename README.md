@@ -30,7 +30,7 @@ restarts. ndbproxy solves all of these annoyances.
 
 ### Tips
 
-#### Chromium Profile + Shell Alias
+#### Chromium profile & shell alias
 
 For added convenience, I recommend you take a few steps to make launching the Chromium devtools as easy as running a simple command.
 
@@ -43,7 +43,7 @@ to an instance of the Devtools pointed at the ndbproxy server.
 Finally, create a shell alias to launch Chromium with this profile: `alias node-devtools="chromium --user-data-dir=$XDG_CONFIG_HOME/chromium-node-inspect"`,
 where `chromium-node-inspect` is the name of the profile.
 
-#### Auto-Reloading Improvements
+#### Auto-reloading improvements
 
 If your node app crashes or exits, you may want it to automatically start back up. Use a shell loop to accomplish this:
 
@@ -60,6 +60,13 @@ find . -not '(' -path ./node_modules -prune ')' -name '*.js' | entr -rds 'while 
 ```
 
 ```
+
+## TODO
+
+- [ ] allow `ndbproxy` to be used as a wrapper for the `node --inspect-brk` command
+- [ ] add command-line arguments to configure listen/serve host:port
+- [ ] reduce verbosity by default, add a `-v` flag
+- [ ] extract mitmproxy integration to a separate file
 
 ## Changelog
 
