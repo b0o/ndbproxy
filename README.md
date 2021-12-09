@@ -67,6 +67,7 @@ find . -not '(' -path ./node_modules -prune ')' -name '*.js' | entr -rds 'while 
 - [ ] add command-line arguments to configure listen/serve host:port
 - [ ] reduce verbosity by default, add a `-v` flag
 - [ ] extract mitmproxy integration to a separate file
+- [ ] come up with a better name
 
 ## Changelog
 
