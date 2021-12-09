@@ -30,6 +30,8 @@ restarts. ndbproxy solves all of these annoyances.
 
 ### Tips
 
+#### Chromium Profile + Shell Alias
+
 For added convenience, I recommend you take a few steps to make launching the Chromium devtools as easy as running a simple command.
 
 Unfortunately, Chromium doesn't allow you to open a `chrome://` or
@@ -40,6 +42,24 @@ to an instance of the Devtools pointed at the ndbproxy server.
 
 Finally, create a shell alias to launch Chromium with this profile: `alias node-devtools="chromium --user-data-dir=$XDG_CONFIG_HOME/chromium-node-inspect"`,
 where `chromium-node-inspect` is the name of the profile.
+
+#### Auto-Reloading Improvements
+
+If your node app crashes or exits, you may want it to automatically start back up. Use a shell loop to accomplish this:
+
+```sh
+while :; do node --inspect-brk app.js; done
+```
+
+Adding to this, to automatically restart your node app when your code changes:
+
+```sh
+find . -not '(' -path ./node_modules -prune ')' -name '*.js' | entr -rds 'while :; do node --inspect-brk app.js; done'
+```
+
+```
+
+```
 
 ## Changelog
 
