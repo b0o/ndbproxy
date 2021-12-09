@@ -26,7 +26,7 @@ Node.js debugger directly from the command line. I also find it annoying that
 it's necessary to specify the debugger ID in the URL and that this ID changes
 each time the node debug server restarts. Finally, I find it annoying that the
 debugger doesn't automatically reconnect to the debug server when the server
-restarts. ndbproxy solves all of those annoyances.
+restarts. ndbproxy solves all of these annoyances.
 
 ### Tips
 
