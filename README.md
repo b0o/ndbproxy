@@ -25,7 +25,7 @@ I find it very annoying that there's no way to launch the Chrome/Chromium
 Node.js debugger directly from the command line. I also find it annoying that
 it's necessary to specify the debugger ID in the URL and that this ID changes
 each time the node debug server restarts. Finally, I find it annoying that the
-debugger didn't automatically reconnect to the debug server when the server
+debugger doesn't automatically reconnect to the debug server when the server
 restarts. ndbproxy solves all of those annoyances.
 
 ### Tips
