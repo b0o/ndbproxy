@@ -1,6 +1,6 @@
-# ndbproxy [![version](https://img.shields.io/github/v/tag/b0o/ndbproxy.nvim?style=flat&color=yellow&label=version&sort=semver)](https://github.com/b0o/ndbproxy.nvim/releases) [![license: MIT](https://img.shields.io/github/license/b0o/ndbproxy.nvim?style=flat&color=green)](https://mit-license.org) [![Build Status](https://img.shields.io/github/workflow/status/b0o/ndbproxy.nvim/test)](https://github.com/b0o/ndbproxy.nvim/actions/workflows/test.yaml)
+# ndbproxy [![version](https://img.shields.io/github/v/tag/b0o/ndbproxy?style=flat&color=yellow&label=version&sort=semver)](https://github.com/b0o/ndbproxy/releases) [![license: MIT](https://img.shields.io/github/license/b0o/ndbproxy?style=flat&color=green)](https://mit-license.org)
 
-A proxy/bridge server the runs between a Node.JS debug server and a Chromium devtools client and adds some additional features:
+A proxy/bridge that runs between a Node.JS debug server and a Chromium devtools client and adds some additional features. 
 
 - A stable URL, no need for a debugger ID, e.g. `devtools://devtools/bundled/js_app.html?v8only=true&ws=localhost:9228`
 - Auto-reconnect to the debug server when it restarts
