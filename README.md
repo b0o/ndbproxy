@@ -68,6 +68,8 @@ find . -not '(' -path ./node_modules -prune ')' -name '*.js' | entr -rds 'while 
 - [ ] reduce verbosity by default, add a `-v` flag
 - [ ] extract mitmproxy integration to a separate file
 - [ ] come up with a better name
+- [ ] detect and prevent reload loops
+- [ ] detect `Waiting for debugger to disconnect`
 
 ## Changelog
 
