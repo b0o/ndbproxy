@@ -4,12 +4,13 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-mitmproxy = "*"
 requests = "*"
 websockets = "*"
 types-requests = "*"
+click = "*"
 
 [dev-packages]
+types-requests = "*"
 
 [requires]
-python_version = "3.9"
+python_version = "3.10"

@@ -2,7 +2,6 @@
 # pylint: disable=missing-function-docstring
 
 import asyncio
-import atexit
 import json
 import multiprocessing
 import time
@@ -12,12 +11,13 @@ import requests
 import websockets
 import websockets.client
 
-from mitmproxy import ctx
-from mitmproxy import http
+import click
 
-# TODO: Make configurable from command-line
-UPSTREAM_HOST = "localhost"
-UPSTREAM_PORT = 9229
+DEFAULT_UPSTREAM_HOST = "localhost"
+DEFAULT_UPSTREAM_PORT = 9229
+
+DEFAULT_LISTEN_HOST = "localhost"
+DEFAULT_LISTEN_PORT = 9228
 
 
 def task(func):
@@ -63,22 +63,6 @@ def retry(max_tries=10, delay=0.1, backoff=1, exception=Exception, is_async=True
     return lambda func: lambda *args, **kwargs: _retry(func, *args, **kwargs)
 
 
-def upstream_uri(path=None, proto="http"):
-    """get uri for `path` for the upstream, optionally with protocol `proto`"""
-    if path is None:
-        path = []
-    elif isinstance(path, str):
-        path = [path]
-    return "{}://{}:{}/{}".format(proto, UPSTREAM_HOST, UPSTREAM_PORT, "/".join(path))
-
-
-@retry(exception=requests.exceptions.ConnectionError, is_async=False, max_tries=-1)
-def upstream_id() -> str:
-    """get the current ID from the upstream server"""
-    res = requests.get(upstream_uri("json/list")).json()
-    return res[0]['id']
-
-
 def chrome_console_message(kind, *args):
     msg = {
         "method": "Runtime.consoleAPICalled",
@@ -107,12 +91,20 @@ def chrome_console_message(kind, *args):
 
 
 class NdbBridge(multiprocessing.Process):  # pylint: disable=too-many-instance-attributes
-    """bridge between the upstream debug server and the NdbProxy mitmproxy addon"""
-    def __init__(self, listen_host, listen_port):
+    """
+    bridge between the upstream debug server and the downstream devtools debugger client
+    """
+
+    def __init__(self, listen_host, listen_port, upstream_host, upstream_port, replay_prelude):
         super().__init__()
+
+        self.replay_prelude = replay_prelude
 
         self.listen_host = listen_host
         self.listen_port = listen_port
+
+        self.upstream_host = upstream_host
+        self.upstream_port = upstream_port
 
         self.bridge_server = None
 
@@ -126,6 +118,20 @@ class NdbBridge(multiprocessing.Process):  # pylint: disable=too-many-instance-a
         self.client_conn = None
         self.client_queue = None
         self.client_sub = None
+
+    def upstream_uri(self, path=None, proto="http"):
+        """get uri for `path` for the upstream, optionally with protocol `proto`"""
+        if path is None:
+            path = []
+        elif isinstance(path, str):
+            path = [path]
+        return f"{proto}://{self.upstream_host}:{self.upstream_port}/{'/'.join(path)}"
+
+    @retry(exception=requests.exceptions.ConnectionError, is_async=False, max_tries=-1)
+    def upstream_id(self) -> str:
+        """get the current ID from the upstream server"""
+        res = requests.get(self.upstream_uri("json/list")).json()
+        return res[0]['id']
 
     @task
     async def queue_subscribe(self, queue: asyncio.Queue, handler):
@@ -146,7 +152,7 @@ class NdbBridge(multiprocessing.Process):  # pylint: disable=too-many-instance-a
             self.client_sub = self.queue_subscribe(self.client_queue, self.client_message_handler)
         self.bridge_server = serve_ws(self.client_websocket_handler, self.listen_host, self.listen_port)
         async with self.bridge_server:
-            print(f"bridge: listening at {self.listen_host}:{self.listen_port}")
+            print(f"bridge: listening on {self.listen_host}:{self.listen_port}")
             await asyncio.Future()
 
     async def client_message_handler(self, message):
@@ -172,6 +178,8 @@ class NdbBridge(multiprocessing.Process):  # pylint: disable=too-many-instance-a
             chrome_console_message("log", "%cDebug server restarted", "color: red; font-weight: bold"))
 
     async def client_replay_prelude(self):
+        if not self.replay_prelude:
+            return
         print("client_replay_prelude")
         while not self.client_queue.empty():
             self.client_queue.get_nowait()
@@ -194,7 +202,7 @@ class NdbBridge(multiprocessing.Process):  # pylint: disable=too-many-instance-a
     @retry(exception=[TimeoutError, websockets.exceptions.InvalidHandshake], max_tries=-1)
     async def server_connect(self):
         """connect to the upstream server"""
-        upstream = upstream_uri(await upstream_id(), "ws")
+        upstream = self.upstream_uri(await self.upstream_id(), "ws")
         print(f"bridge: server_connect: {upstream}")
         self.server_conn = await websockets.client.connect(upstream, ping_interval=None)
         if not self.server_sub:
@@ -246,54 +254,58 @@ class NdbBridge(multiprocessing.Process):  # pylint: disable=too-many-instance-a
         print('bridge: stopped')
 
 
-class NdbProxy:
-    """Proxy connection between Node<-->Chrome debugger with a stable URL"""
-    def __init__(self):
-        self.bridge = NdbBridge("localhost", 8273)
-        self.bridge.start()
-        atexit.register(self.bridge.kill)
+def validate_addr(default_host, default_port):
 
-    def done(self):
-        print("proxy: done")
-        self.bridge.kill()
+    def validate(ctx, param, value):
+        components = value.split(":", maxsplit=1)
+        listen_host = components[0] if (len(components) > 0 and components[0] != "") else default_host
+        listen_port = components[1] if (len(components) > 1 and components[1] != "") else default_port
+        try:
+            listen_port = int(listen_port)
+        except ValueError as err:
+            raise click.BadParameter("invalid port") from err
+        return (listen_host, listen_port)
 
-    def load(self, loader):  # pylint: disable=no-self-use
-        """ mitmproxy load hook """
-        loader.add_option(
-            name="out-file",
-            typespec=str,
-            default="",
-            help="File to output WebSocket messages to",
-        )
-
-    def request(self, flow: http.HTTPFlow) -> None:
-        """mitmproxy request hook"""
-        print("proxy: request")
-        if flow.request.path != "/debugger":
-            return
-        req_headers = flow.request.headers
-        if not (req_headers["Connection"] == "Upgrade" and req_headers["Upgrade"] == "websocket"):
-            return
-        flow.request.host = self.bridge.listen_host
-        flow.request.port = self.bridge.listen_port
-        flow.request.path = "/"
-
-    def websocket_message(self, flow: http.HTTPFlow) -> None:  # pylint: disable=no-self-use
-        """mitmproxy websocket_message hook"""
-        assert flow.websocket is not None
-        msg = flow.websocket.messages[-1]
-        kind = "client" if msg.from_client else "server"
-
-        file = getattr(ctx.options, 'out-file')
-        if file:
-            with open(file, "a") as handle:
-                handle.write(json.dumps({kind: json.loads(msg.text)}) + "\n")
+    return validate
 
 
-addons = []
+@click.command()
+@click.option("-l",
+              "--listen-addr",
+              default=f"{DEFAULT_LISTEN_HOST}:{DEFAULT_LISTEN_PORT}",
+              is_flag=False,
+              type=click.UNPROCESSED,
+              callback=validate_addr(DEFAULT_LISTEN_HOST, DEFAULT_LISTEN_PORT),
+              show_default=True,
+              help="Listen address")
+@click.option("-u",
+              "--upstream-addr",
+              default=f"{DEFAULT_UPSTREAM_HOST}:{DEFAULT_UPSTREAM_PORT}",
+              is_flag=False,
+              type=click.UNPROCESSED,
+              callback=validate_addr(DEFAULT_UPSTREAM_HOST, DEFAULT_UPSTREAM_PORT),
+              show_default=True,
+              help="Upstream address")
+@click.option("-P",
+              "--no-replay-prelude",
+              default=False,
+              is_flag=True,
+              type=bool,
+              show_default=True,
+              help="Don't replay the prelude when a new client connects to a running server")
+def main(listen_addr, upstream_addr, no_replay_prelude):
+    """A bridge between an Node.JS debug server and a Chrome Devtools debugger client."""
+
+    listen_host, listen_port = listen_addr
+    upstream_host, upstream_port = upstream_addr
+
+    bridge = NdbBridge(listen_host=listen_host,
+                       listen_port=listen_port,
+                       upstream_host=upstream_host,
+                       upstream_port=upstream_port,
+                       replay_prelude=not no_replay_prelude)
+    bridge.run()
+
 
 if __name__ == "__main__":
-    bridge = NdbBridge("localhost", 9228)
-    bridge.run()
-else:
-    addons.append(NdbProxy())
+    main()  # pylint: disable=no-value-for-parameter
