@@ -56,10 +56,6 @@ To automatically restart your node app and reload the debugger when your code ch
 find . -not '(' -path ./node_modules -prune ')' -name '*.js' | entr -rds 'while :; do node --inspect-brk app.js; done'
 ```
 
-```
-
-```
-
 ## TODO
 
 - [ ] allow `ndbproxy` to be used as a wrapper for the `node --inspect-brk` command
