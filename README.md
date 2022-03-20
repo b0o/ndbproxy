@@ -50,7 +50,7 @@ If your node application crashes or exits, you may want it to restart automatica
 while :; do node --inspect-brk app.js; done
 ```
 
-To automatically restart your node app and reloc the debugger when your code changes:
+To automatically restart your node app and reload the debugger when your code changes:
 
 ```sh
 find . -not '(' -path ./node_modules -prune ')' -name '*.js' | entr -rds 'while :; do node --inspect-brk app.js; done'
